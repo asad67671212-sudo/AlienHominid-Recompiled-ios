@@ -35,10 +35,11 @@ jobs:
           # templates. Use the C header so Apple Clang sees the global
           # declarations during template definition.
           if "#include <stdlib.h>" not in s:
-              marker = '#include "core.h"'
-              if marker not in s:
-                  raise SystemExit("Could not find fmt include insertion point")
-              s = s.replace(marker, marker + "\n#include <stdlib.h> // malloc, free", 1)
+              marker = "#include <"
+              i = s.find(marker)
+              if i == -1:
+                  raise SystemExit("Could not find fmt include section")
+              s = s[:i] + "#include <stdlib.h> // malloc, free\n" + s[i:]
               p.write_text(s)
 
           print("Patched fmt/format.h with <stdlib.h>")
