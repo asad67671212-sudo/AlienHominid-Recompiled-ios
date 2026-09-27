@@ -31,24 +31,23 @@ jobs:
           p = Path("xenonrecomp/thirdparty/fmt/include/fmt/format.h")
           s = p.read_text()
 
-          # This bundled fmt release uses unqualified malloc/free in
-          # templates. Modern Apple Clang requires the declarations to be
-          # visible at template definition time. Use the C++ namespace
-          # explicitly so lookup is unambiguous.
-          if "#include <cstdlib>" not in s:
-              marker = "#include <"
-              i = s.find(marker)
-              if i == -1:
-                  raise SystemExit("Could not find fmt include section")
-              s = s[:i] + "#include <stdlib.h> // global malloc/free declarations\n" + s[i:]
+          # The bundled fmt allocator intentionally avoids the C++ runtime.
+          # Apple Clang's modern libc headers do not expose malloc/free in the
+          # global namespace in this compilation mode, so use Clang builtins.
+          s = s.replace(
+              "static_cast<T*>(malloc(n * sizeof(T)))",
+              "static_cast<T*>(__builtin_malloc(n * sizeof(T)))"
+          )
+          s = s.replace(
+              "void deallocate(T* p, size_t) { free(p); }",
+              "void deallocate(T* p, size_t) { __builtin_free(p); }"
+          )
 
-          s = s.replace("static_cast<T*>(malloc(n * sizeof(T)))",
-                        "static_cast<T*>(::malloc(n * sizeof(T)))")
-          s = s.replace("void deallocate(T* p, size_t) { free(p); }",
-                        "void deallocate(T* p, size_t) { ::free(p); }")
+          if "static_cast<T*>(__builtin_malloc(n * sizeof(T)))" not in s:
+              raise SystemExit("fmt allocator patch did not match expected source")
 
           p.write_text(s)
-          print("Patched fmt allocator to use std::malloc/std::free")
+          print("Patched fmt allocator to use Clang malloc/free builtins")
           PY
 
       - name: Configure XenonRecomp
