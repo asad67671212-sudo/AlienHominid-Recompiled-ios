@@ -21,6 +21,7 @@ jobs:
 
       - name: Clone XenonRecomp
         run: |
+          rm -rf xenonrecomp
           git clone --recursive https://github.com/hedge-dev/XenonRecomp.git xenonrecomp
 
       - name: Fix bundled fmt for modern Apple Clang headers
@@ -68,3 +69,5 @@ jobs:
           name: xenonrecomp-macos
           path: xenonrecomp/build/
           if-no-files-found: error
+
+
