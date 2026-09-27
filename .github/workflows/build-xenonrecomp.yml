@@ -70,9 +70,10 @@ jobs:
           import re
 
           alias_re = re.compile(
-              r'__attribute__\\(\\(alias\\("([^"]+)"\\)\\)\\)\\s+PPC_WEAK_FUNC\\(([^)]+)\\);'
+              r'__attribute__\(\(alias\("([^"]+)"\)\)\)\s+PPC_WEAK_FUNC\(([^)]+)\);'
           )
 
+          total = 0
           for path in Path("AlienHominid/ppc").glob("ppc_recomp.*.cpp"):
               text = path.read_text()
               matches = alias_re.findall(text)
@@ -83,13 +84,18 @@ jobs:
               wrappers = []
               for target, alias in matches:
                   wrappers.append(
-                      f"\\nPPC_FUNC_IMPL({alias}) {{\\n"
-                      f"\\t{target}(ctx, base);\\n"
-                      f"}}\\n"
+                      f"\nPPC_FUNC_IMPL({alias}) {{\n"
+                      f"\t{target}(ctx, base);\n"
+                      f"}}\n"
                   )
 
-              path.write_text(text + "\\n" + "".join(wrappers))
+              path.write_text(text + "\n" + "".join(wrappers))
+              total += len(matches)
               print(f"Patched {path}: {len(matches)} Darwin aliases")
+
+          if total == 0:
+              raise SystemExit("No PPC Darwin aliases were found; refusing to continue")
+          print(f"Total Darwin aliases patched: {total}")
           PY
 
       - name: Configure Alien Hominid iOS build
