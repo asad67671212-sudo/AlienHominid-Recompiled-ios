@@ -40,12 +40,12 @@ jobs:
               i = s.find(marker)
               if i == -1:
                   raise SystemExit("Could not find fmt include section")
-              s = s[:i] + "#include <cstdlib> // malloc/free declarations\n" + s[i:]
+              s = s[:i] + "#include <stdlib.h> // global malloc/free declarations\n" + s[i:]
 
           s = s.replace("static_cast<T*>(malloc(n * sizeof(T)))",
-                        "static_cast<T*>(std::malloc(n * sizeof(T)))")
+                        "static_cast<T*>(::malloc(n * sizeof(T)))")
           s = s.replace("void deallocate(T* p, size_t) { free(p); }",
-                        "void deallocate(T* p, size_t) { std::free(p); }")
+                        "void deallocate(T* p, size_t) { ::free(p); }")
 
           p.write_text(s)
           print("Patched fmt allocator to use std::malloc/std::free")
