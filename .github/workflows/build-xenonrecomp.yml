@@ -31,15 +31,17 @@ jobs:
           p = Path("xenonrecomp/thirdparty/fmt/include/fmt/format.h")
           s = p.read_text()
 
-          if "#include <cstdlib>" not in s:
-              marker = "#include <"
-              i = s.find(marker)
-              if i == -1:
-                  raise SystemExit("Could not find fmt include section")
-              s = s[:i] + "#include <cstdlib>\n" + s[i:]
+          # The bundled fmt version uses unqualified malloc/free inside
+          # templates. Use the C header so Apple Clang sees the global
+          # declarations during template definition.
+          if "#include <stdlib.h>" not in s:
+              marker = '#include "core.h"'
+              if marker not in s:
+                  raise SystemExit("Could not find fmt include insertion point")
+              s = s.replace(marker, marker + "\n#include <stdlib.h> // malloc, free", 1)
               p.write_text(s)
 
-          print("Patched fmt/format.h with <cstdlib>")
+          print("Patched fmt/format.h with <stdlib.h>")
           PY
 
       - name: Configure XenonRecomp
