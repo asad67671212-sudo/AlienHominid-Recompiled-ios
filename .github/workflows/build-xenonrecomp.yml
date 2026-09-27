@@ -1,0 +1,43 @@
+name: Build XenonRecomp Toolchain
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build-xenonrecomp:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Install LLVM/Clang
+        run: |
+          brew update
+          brew install llvm
+          echo "LLVM_PREFIX=$(brew --prefix llvm)" >> "$GITHUB_ENV"
+
+      - name: Clone XenonRecomp
+        run: |
+          git clone --recursive https://github.com/hedge-dev/XenonRecomp.git xenonrecomp
+
+      - name: Configure XenonRecomp
+        run: |
+          cmake -S xenonrecomp -B xenonrecomp/build             -DCMAKE_BUILD_TYPE=Release             -DCMAKE_C_COMPILER="$LLVM_PREFIX/bin/clang"             -DCMAKE_CXX_COMPILER="$LLVM_PREFIX/bin/clang++"
+
+      - name: Build XenonRecomp
+        run: |
+          cmake --build xenonrecomp/build --config Release --parallel
+
+      - name: Show built tools
+        run: |
+          find xenonrecomp/build -type f -perm -111 -maxdepth 5 | sort
+
+      - name: Upload XenonRecomp build
+        uses: actions/upload-artifact@v4
+        with:
+          name: xenonrecomp-macos
+          path: xenonrecomp/build/
+          if-no-files-found: error
