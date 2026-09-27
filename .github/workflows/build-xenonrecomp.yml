@@ -63,6 +63,35 @@ jobs:
           git clone --depth 1 https://github.com/libsdl-org/SDL.git AlienHominid/vendored/SDL
           git clone --depth 1 https://github.com/simd-everywhere/simde.git AlienHominid/vendored/simde
 
+      - name: Patch PPC aliases for Darwin
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          alias_re = re.compile(
+              r'__attribute__\\(\\(alias\\("([^"]+)"\\)\\)\\)\\s+PPC_WEAK_FUNC\\(([^)]+)\\);'
+          )
+
+          for path in Path("AlienHominid/ppc").glob("ppc_recomp.*.cpp"):
+              text = path.read_text()
+              matches = alias_re.findall(text)
+              if not matches:
+                  continue
+
+              text = alias_re.sub("", text)
+              wrappers = []
+              for target, alias in matches:
+                  wrappers.append(
+                      f"\\nPPC_FUNC_IMPL({alias}) {{\\n"
+                      f"\\t{target}(ctx, base);\\n"
+                      f"}}\\n"
+                  )
+
+              path.write_text(text + "\\n" + "".join(wrappers))
+              print(f"Patched {path}: {len(matches)} Darwin aliases")
+          PY
+
       - name: Configure Alien Hominid iOS build
         run: |
           cmake -S AlienHominid -B AlienHominid/build-ios -G Xcode             -DCMAKE_SYSTEM_NAME=iOS             -DCMAKE_OSX_SYSROOT=iphoneos             -DCMAKE_OSX_ARCHITECTURES=arm64             -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0             -DCMAKE_BUILD_TYPE=Release             -DSDL_SHARED=OFF             -DSDL_STATIC=ON
