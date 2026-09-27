@@ -15,11 +15,9 @@
 #include <cstdlib>
 #include <cstring>
 
-#if defined(__x86_64__) || defined(__i386__)
-#include <x86/avx.h>
-#include <x86/sse.h>
-#include <x86/sse4.1.h>
-#endif
+#include <simde/x86/avx.h>
+#include <simde/x86/sse.h>
+#include <simde/x86/sse4.1.h>
 
 // SSE3 constants are missing from simde
 #ifndef _MM_DENORMALS_ZERO_MASK
