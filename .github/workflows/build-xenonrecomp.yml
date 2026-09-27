@@ -23,6 +23,25 @@ jobs:
         run: |
           git clone --recursive https://github.com/hedge-dev/XenonRecomp.git xenonrecomp
 
+      - name: Fix bundled fmt for modern Apple Clang headers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("xenonrecomp/thirdparty/fmt/include/fmt/format.h")
+          s = p.read_text()
+
+          if "#include <cstdlib>" not in s:
+              marker = "#include <"
+              i = s.find(marker)
+              if i == -1:
+                  raise SystemExit("Could not find fmt include section")
+              s = s[:i] + "#include <cstdlib>\n" + s[i:]
+              p.write_text(s)
+
+          print("Patched fmt/format.h with <cstdlib>")
+          PY
+
       - name: Configure XenonRecomp
         run: |
           cmake -S xenonrecomp -B xenonrecomp/build             -DCMAKE_BUILD_TYPE=Release             -DCMAKE_C_COMPILER="$LLVM_PREFIX/bin/clang"             -DCMAKE_CXX_COMPILER="$LLVM_PREFIX/bin/clang++"
