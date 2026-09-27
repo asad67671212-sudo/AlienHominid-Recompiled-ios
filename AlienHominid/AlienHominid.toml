@@ -1,0 +1,10 @@
+[main]
+file_path = "../../../XboxImageExtractor-v1.2-win-x64/alien hominid LEGAL COPY/default.xex"
+out_directory_path = "ppc"
+switch_table_file_path = "jump_table.toml"
+
+restgprlr_14_address = 0x822E9900
+savegprlr_14_address = 0x822E98B0
+
+restfpr_14_address = 0x822E9F4C
+savefpr_14_address = 0x822E9F00
