@@ -2,8 +2,6 @@ name: Build XenonRecomp Toolchain
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   build-xenonrecomp:
@@ -67,18 +65,11 @@ jobs:
 
       - name: Configure Alien Hominid iOS build
         run: |
-          cmake -S AlienHominid -B AlienHominid/build-ios -G Xcode \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_SYSROOT=iphoneos \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DSDL_SHARED=OFF \
-            -DSDL_STATIC=ON
+          cmake -S AlienHominid -B AlienHominid/build-ios -G Xcode             -DCMAKE_SYSTEM_NAME=iOS             -DCMAKE_OSX_SYSROOT=iphoneos             -DCMAKE_OSX_ARCHITECTURES=arm64             -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0             -DCMAKE_BUILD_TYPE=Release             -DSDL_SHARED=OFF             -DSDL_STATIC=ON
 
       - name: Build Alien Hominid iOS scaffold
         run: |
-          cmake --build AlienHominid/build-ios --config Release --parallel
+          cmake --build AlienHominid/build-ios             --config Release             --parallel             --             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""
 
       - name: Show iOS build output
         run: |
@@ -95,5 +86,3 @@ jobs:
           name: xenonrecomp-macos
           path: xenonrecomp/build/
           if-no-files-found: error
-
-
