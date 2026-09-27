@@ -59,6 +59,32 @@ jobs:
         run: |
           cmake --build xenonrecomp/build --config Release --parallel
 
+      - name: Prepare iOS dependencies
+        run: |
+          rm -rf AlienHominid/vendored/SDL AlienHominid/vendored/simde
+          git clone --depth 1 https://github.com/libsdl-org/SDL.git AlienHominid/vendored/SDL
+          git clone --depth 1 https://github.com/simd-everywhere/simde.git AlienHominid/vendored/simde
+
+      - name: Configure Alien Hominid iOS build
+        run: |
+          cmake -S AlienHominid -B AlienHominid/build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSDL_SHARED=OFF \
+            -DSDL_STATIC=ON
+
+      - name: Build Alien Hominid iOS scaffold
+        run: |
+          cmake --build AlienHominid/build-ios --config Release --parallel
+
+      - name: Show iOS build output
+        run: |
+          find AlienHominid/build-ios -maxdepth 6 -type d -name "*.app" -print
+          find AlienHominid/build-ios -maxdepth 6 -type f -name "AlienHominid" -print
+
       - name: Show built tools
         run: |
           find xenonrecomp/build -type f -perm -111 -maxdepth 5 | sort
