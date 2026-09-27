@@ -34,7 +34,6 @@ target_include_directories(alien_hominid_core PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/vendored/simde"
 )
 
-target_compile_definitions(alien_hominid_core PRIVATE PPC_INCLUDE_DETAIL)
 target_link_libraries(alien_hominid_core PUBLIC SDL3::SDL3)
 
 if(ALIEN_HOMINID_BUILD_APP)
