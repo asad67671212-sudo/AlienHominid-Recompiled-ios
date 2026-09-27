@@ -31,6 +31,7 @@ add_library(alien_hominid_core STATIC
 target_include_directories(alien_hominid_core PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/ppc"
   "${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+  "${CMAKE_CURRENT_SOURCE_DIR}/vendored/simde"
 )
 
 target_compile_definitions(alien_hominid_core PRIVATE PPC_INCLUDE_DETAIL)
@@ -41,12 +42,16 @@ if(ALIEN_HOMINID_BUILD_APP)
   target_include_directories(AlienHominid PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/ppc"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendored/simde"
   )
-  target_link_libraries(AlienHominid PRIVATE SDL3::SDL3)
+  target_link_libraries(AlienHominid PRIVATE SDL3::SDL3 alien_hominid_core)
   set_target_properties(AlienHominid PROPERTIES
     MACOSX_BUNDLE TRUE
     PRODUCT_BUNDLE_IDENTIFIER "com.hussein.alienhominid"
     XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.hussein.alienhominid"
+    XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+    XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
+    XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ""
     XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName "Alien Hominid"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UIRequiresFullScreen "YES"
