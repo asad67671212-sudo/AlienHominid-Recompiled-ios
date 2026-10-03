@@ -1,0 +1,75 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Install tools
+        run: brew install cmake ninja
+
+      # The game executable is never committed. Store it base64-encoded in a secret.
+      - name: Restore game files
+        env:
+          XEX_B64: ${{ secrets.ALIEN_HOMINID_XEX_B64 }}
+        run: |
+          mkdir -p private
+          echo "$XEX_B64" | base64 --decode > private/default.xex
+          ls -la private
+
+      # 1) Build XenonRecomp for the macOS host and generate the C++ sources
+      - name: Build XenonRecomp (host)
+        run: |
+          cmake -S tools/XenonRecomp -B build/host -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/host
+
+      - name: Run XenonAnalyse + XenonRecomp
+        run: |
+          ./build/host/XenonAnalyse/XenonAnalyse private/default.xex AlienHominidRecompLib/config/switch_tables.toml
+          ./build/host/XenonRecomp/XenonRecomp AlienHominidRecompLib/config/AlienHominid.toml \
+            tools/XenonRecomp/thirdparty/ppc_context.h
+
+      # 2) Cross-compile the generated code + runtime for iOS
+      - name: Configure (iOS)
+        run: |
+          cmake -S . -B build/ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="" \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (iOS)
+        run: cmake --build build/ios --config Release -- -sdk iphoneos
+
+      # 3) Package an unsigned IPA for sideloading (AltStore/Sideloadly/TrollStore)
+      - name: Package IPA
+        run: |
+          APP=$(find build/ios -name "*.app" -path "*Release-iphoneos*" | head -n 1)
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qr AlienHominidRecomp-ios-unsigned.ipa Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlienHominidRecomp-ios
+          path: AlienHominidRecomp-ios-unsigned.ipa
