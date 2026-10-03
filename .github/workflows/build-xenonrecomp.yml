@@ -1,63 +1,17 @@
-name: Build XenonRecomp Toolchain
+name: iOS Build
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-  build-xenonrecomp:
+  build-ios:
     runs-on: macos-latest
+    timeout-minutes: 90
 
     steps:
-      - name: Checkout project
-        uses: actions/checkout@v4
-
-      - name: Install LLVM/Clang
-        run: |
-          brew update
-          brew install llvm
-          echo "LLVM_PREFIX=$(brew --prefix llvm)" >> "$GITHUB_ENV"
-
-      - name: Clone XenonRecomp
-        run: |
-          rm -rf xenonrecomp
-          git clone --recursive https://github.com/hedge-dev/XenonRecomp.git xenonrecomp
-
-      - name: Fix bundled fmt for modern Apple Clang headers
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("xenonrecomp/thirdparty/fmt/include/fmt/format.h")
-          s = p.read_text()
-
-          # The bundled fmt allocator intentionally avoids the C++ runtime.
-          # Apple Clang's modern libc headers do not expose malloc/free in the
-          # global namespace in this compilation mode, so use Clang builtins.
-          s = s.replace(
-              "static_cast<T*>(malloc(n * sizeof(T)))",
-              "static_cast<T*>(__builtin_malloc(n * sizeof(T)))"
-          )
-          s = s.replace(
-              "void deallocate(T* p, size_t) { free(p); }",
-              "void deallocate(T* p, size_t) { __builtin_free(p); }"
-          )
-
-          if "static_cast<T*>(__builtin_malloc(n * sizeof(T)))" not in s:
-              raise SystemExit("fmt allocator patch did not match expected source")
-
-          p.write_text(s)
-          print("Patched fmt allocator to use Clang malloc/free builtins")
-          PY
-
-      - name: Configure XenonRecomp
-        run: |
-          cmake -S xenonrecomp -B xenonrecomp/build             -DCMAKE_BUILD_TYPE=Release             -DCMAKE_C_COMPILER="$LLVM_PREFIX/bin/clang"             -DCMAKE_CXX_COMPILER="$LLVM_PREFIX/bin/clang++"
-
-      - name: Build XenonRecomp
-        run: |
-          cmake --build xenonrecomp/build --config Release --parallel
+      - uses: actions/checkout@v4
 
       - name: Prepare iOS dependencies
         run: |
@@ -70,56 +24,39 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-
-          alias_re = re.compile(
-              r'__attribute__\(\(alias\("([^"]+)"\)\)\)\s+PPC_WEAK_FUNC\(([^)]+)\);'
-          )
-
+          alias_re = re.compile(r'__attribute__\(\(alias\("([^"]+)"\)\)\)\s+PPC_WEAK_FUNC\(([^)]+)\);')
           total = 0
           for path in Path("AlienHominid/ppc").glob("ppc_recomp.*.cpp"):
               text = path.read_text()
               matches = alias_re.findall(text)
               if not matches:
                   continue
-
               text = alias_re.sub("", text)
-              wrappers = []
-              for target, alias in matches:
-                  wrappers.append(
-                      f"\nPPC_FUNC_IMPL({alias}) {{\n"
-                      f"\t{target}(ctx, base);\n"
-                      f"}}\n"
-                  )
-
+              wrappers = [f"\nPPC_FUNC_IMPL({alias}) {{\n\t{target}(ctx, base);\n}}\n" for target, alias in matches]
               path.write_text(text + "\n" + "".join(wrappers))
               total += len(matches)
-              print(f"Patched {path}: {len(matches)} Darwin aliases")
-
-          if total == 0:
-              raise SystemExit("No PPC Darwin aliases were found; refusing to continue")
           print(f"Total Darwin aliases patched: {total}")
           PY
 
-      - name: Configure Alien Hominid iOS build
+      - name: Configure
         run: |
-          cmake -S AlienHominid -B AlienHominid/build-ios -G Xcode             -DCMAKE_SYSTEM_NAME=iOS             -DCMAKE_OSX_SYSROOT=iphoneos             -DCMAKE_OSX_ARCHITECTURES=arm64             -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0             -DCMAKE_BUILD_TYPE=Release             -DSDL_SHARED=OFF             -DSDL_STATIC=ON
+          cmake -S AlienHominid -B AlienHominid/build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DSDL_SHARED=OFF -DSDL_STATIC=ON
 
-      - name: Build Alien Hominid iOS scaffold
+      - name: Build
+        run: cmake --build AlienHominid/build-ios --config Release --target AlienHominid -- -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
         run: |
-          cmake --build AlienHominid/build-ios             --config Release             --parallel             --             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""
+          APP=$(find AlienHominid/build-ios -name "AlienHominid.app" -path "*Release-iphoneos*" | head -n 1)
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qr AlienHominid-ios-unsigned.ipa Payload
 
-      - name: Show iOS build output
-        run: |
-          find AlienHominid/build-ios -maxdepth 6 -type d -name "*.app" -print
-          find AlienHominid/build-ios -maxdepth 6 -type f -name "AlienHominid" -print
-
-      - name: Show built tools
-        run: |
-          find xenonrecomp/build -type f -perm -111 -maxdepth 5 | sort
-
-      - name: Upload XenonRecomp build
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: xenonrecomp-macos
-          path: xenonrecomp/build/
-          if-no-files-found: error
+          name: AlienHominid-ios
+          path: AlienHominid-ios-unsigned.ipa
