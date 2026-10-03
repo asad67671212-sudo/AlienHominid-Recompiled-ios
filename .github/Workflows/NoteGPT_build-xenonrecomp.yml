@@ -1,0 +1,67 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare iOS dependencies
+        run: |
+          rm -rf AlienHominid/vendored/SDL AlienHominid/vendored/simde
+          git clone --depth 1 https://github.com/libsdl-org/SDL.git AlienHominid/vendored/SDL
+          git clone --depth 1 https://github.com/simd-everywhere/simde.git AlienHominid/vendored/simde
+
+      # Darwin/Mach-O cannot resolve the generated `alias("__imp__...")`
+      # attributes (symbols are underscore-prefixed), and turning them into
+      # `extern "C"` wrappers conflicts with the C++-linkage declarations in
+      # ppc_recomp_shared.h. Emit C++-linkage wrappers (PPC_FUNC) instead.
+      - name: Patch PPC aliases for Darwin
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          alias_re = re.compile(r'^__attribute__\(\(alias\("([^"]+)"\)\)\)\s+PPC_WEAK_FUNC\(([^)]+)\);\s*$', re.M)
+          total = 0
+          for path in Path("AlienHominid/ppc").glob("ppc_recomp.*.cpp"):
+              text = path.read_text()
+              matches = alias_re.findall(text)
+              if not matches:
+                  continue
+              text = alias_re.sub("", text)
+              # NOTE: PPC_FUNC (C++ linkage) must be used here, NOT PPC_FUNC_IMPL.
+              wrappers = [f"\nPPC_FUNC({alias}) {{ {target}(ctx, base); }}\n" for target, alias in matches]
+              path.write_text(text + "\n" + "".join(wrappers))
+              total += len(matches)
+          print(f"Total Darwin aliases patched: {total}")
+          PY
+
+      - name: Configure
+        run: |
+          cmake -S AlienHominid -B AlienHominid/build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DSDL_SHARED=OFF -DSDL_STATIC=ON
+
+      - name: Build
+        run: cmake --build AlienHominid/build-ios --config Release --target AlienHominid -- -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          APP=$(find AlienHominid/build-ios -name "AlienHominid.app" -path "*Release-iphoneos*" | head -n 1)
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qr AlienHominid-ios-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AlienHominid-ios
+          path: AlienHominid-ios-unsigned.ipa
